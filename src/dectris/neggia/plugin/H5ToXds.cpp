@@ -40,12 +40,14 @@ namespace {
 
 struct H5DataCache {
    std::string filename;
+   std::string beamStopFilename;
    H5File h5File;
    int dimx;
    int dimy;
    int datasize;
    int nframesPerDataset;
    std::unique_ptr<uint32_t[]> pixelMask;
+   std::unique_ptr<uint32_t[]> beamStopMask;
    float xpixelSize;
    float ypixelSize;
 };
@@ -153,6 +155,23 @@ void setYPixelSize(H5DataCache* dataCache)
 }
 
 void setPixelMask(H5DataCache* dataCache) {
+    try {
+       Dataset pixelMask(dataCache->h5File, "/entry/instrument/detector/detectorSpecific/pixel_mask");
+       assert(pixelMask.dataTypeId() == 0);
+       assert(pixelMask.dataSize() == sizeof(uint32_t));
+       auto dim(pixelMask.dim());
+       assert(dim.size() == 2);
+       dataCache->dimx = (int)dim[1];
+       dataCache->dimy = (int)dim[0];
+       size_t s = (size_t )(dataCache->dimx * dataCache->dimy);
+       dataCache->pixelMask.reset(new uint32_t[s]);
+       pixelMask.read(dataCache->pixelMask.get());
+    } catch (const std::out_of_range &) {
+       throw H5Error(-4, "NEGGIA ERROR: CANNOT READ PIXEL MASK FROM ", dataCache->filename);
+    }
+}
+   
+void setBeamStopMask(H5DataCache* dataCache) {
     try {
        Dataset pixelMask(dataCache->h5File, "/entry/instrument/detector/detectorSpecific/pixel_mask");
        assert(pixelMask.dataTypeId() == 0);
